@@ -1,0 +1,42 @@
+Actualizar CSV en carpeta de datos
+borrar columnas en blanco y la informacion de TAG
+
+ejecutar python scripts/subir_csv_supabase.py
+
+si no estan instaladas las instancias hacerlo con 
+
+pip install -r requirements.txt
+
+despues ejecutar chat 
+
+1. venv\Scripts\activate
+
+2. streamlit run chat_publico.py
+
+para que funcione se tiene que habilitar el codigo de seguimiento de transferencia
+creacion link del chat chat_publico
+
+pip install -r requirements.txt
+
+python scripts/subir_csv_supabase.py
+
+1. venv\Scripts\activate
+
+2. streamlit run chat_publico.py
+
+en otra terminal activar el chat publico 
+
+1. ngrok http 8502
+
+cuando se muestro algo como el siguiente ejemplo 
+Forwarding  https://nonrepatriable-tensibly-alaina.ngrok-free.dev -> http://localhost:8501 
+
+es el link publico 
+
+solo funciona con vpn 
+
+link creado 
+https://nonrepatriable-tensibly-alaina.ngrok-free.dev/
+
+
+

@@ -1,0 +1,194 @@
+import os
+import pandas as pd
+from dotenv import load_dotenv
+from supabase import create_client
+
+# CONFIGURACIÓN
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+if not SUPABASE_URL:
+    raise Exception("No existe SUPABASE_URL en .env")
+if not SUPABASE_KEY:
+    raise Exception("No existe SUPABASE_KEY en .env")
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
+
+# CSV
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+CSV_FILE = os.path.join(
+    BASE_DIR,
+    "datos",
+    "Seguimiento Transferencias y TAG 2025 2.0 28-07.csv"
+)
+print("=" * 60)
+print("IMPORTADOR SUPABASE")
+print("=" * 60)
+print("Leyendo CSV...")
+
+try:
+    df = pd.read_csv(
+    CSV_FILE,
+    encoding="utf-8-sig",
+    sep=";",
+    low_memory=False
+)
+except UnicodeDecodeError:
+    print("CSV detectado...")
+    df = pd.read_csv(
+        CSV_FILE,
+        encoding="cp1252",
+        sep=";",
+        header=1,
+        low_memory=False
+    )
+print(f"Registros encontrados: {len(df)}")
+df.columns = df.columns.str.strip()
+
+# Eliminar filas sin patente
+df = df[df["PPU"].notna()]
+df = df[df["PPU"].astype(str).str.strip() != ""]
+
+# Normalizar PPU
+df["PPU"] = (
+    df["PPU"]
+    .astype(str)
+    .str.strip()
+    .str.upper()
+)
+df = df[df["PPU"] != ""]
+
+# Convertir la fecha de remate para poder comparar
+df["Fecha Remate"] = pd.to_datetime(
+    df["Fecha Remate"],
+    dayfirst=True,
+    errors="coerce"
+)
+
+# Conservar el registro más reciente de cada patente
+df = (
+    df.sort_values("Fecha Remate")
+      .drop_duplicates(subset=["PPU"], keep="last")
+)
+print(f"Registros válidos: {len(df)}")
+
+# FUNCIONES
+def texto(valor):
+    """
+    Convierte valores vacíos en None
+    y elimina espacios.
+    """
+    if pd.isna(valor):
+        return None
+    valor = str(valor).strip()
+    if valor == "":
+        return None
+    return valor
+def fecha(valor):
+    """
+    Convierte cualquier fecha al formato YYYY-MM-DD.
+    """
+    if pd.isna(valor):
+        return None
+    valor = str(valor).strip()
+    if valor == "":
+        return None
+    try:
+        fecha = pd.to_datetime(
+            valor,
+            dayfirst=True,
+            errors="coerce"
+        )
+        if pd.isna(fecha):
+            return None
+        return fecha.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+print("Preparando registros...")
+registros = []
+
+# CONSTRUIR REGISTROS
+for _, fila in df.iterrows():
+    registro = {
+        "id_rte": texto(fila["ID Rte"]),
+        "fecha_remate": fecha(fila["Fecha Remate"]),
+        "lote": texto(fila["Lote"]),
+        "ppu": texto(fila["PPU"]),
+        "estado_lote": texto(fila["Estado Lote"]),
+        "estado_transferencia": texto(fila["Estado de transferencia"]),
+        "mandante_comercial": texto(fila["MANDANTE COMERCIAL"]),
+        "observacion": texto(fila["Observación"]),
+        "fecha_ultima_observacion": fecha(
+            fila["F. última observación"]
+        ),
+        "ingreso_proveedor": fecha(
+            fila["Ingreso Proveedor"]
+        ),
+        "solicitud_transferencia": fecha(
+            fila["Solicitud transferencia"]
+        ),
+        "rechazo": fecha(
+            fila["Rechazo"]
+        ),
+        "reingreso": fecha(
+            fila["Reingreso"]
+        ),
+        "fecha_transferencia": fecha(
+            fila["Transferido"]
+        ),
+        "enviado_banco": fecha(
+            fila["Enviado Banco"]
+        ),
+        "recibido_banco": fecha(
+            fila["Recibido Banco"]
+        ),
+        "enviado_mandante": fecha(
+            fila["Enviado Mandante"]
+        ),
+        "recibido_mandante": fecha(
+            fila["Recibido Mandante"]
+        ),
+        "enviado_legalizar": fecha(
+            fila["Enviado a Legalizar"]
+        ),
+        "recibido_legalizacion": fecha(
+            fila["Recibida Legalización"]
+        )
+    }
+    registros.append(registro)
+print(f"Registros preparados: {len(registros)}")
+
+
+# CARGAR A SUPABASE
+print("Subiendo registros a Supabase...")
+TAMANO_LOTE = 500
+total = len(registros)
+for inicio in range(0, total, TAMANO_LOTE):
+    fin = min(inicio + TAMANO_LOTE, total)
+    lote = registros[inicio:fin]
+    try:
+        supabase.table("transferencias").insert(
+            lote
+        ).execute()
+        print(
+            f"✔ Registros {inicio + 1} - {fin} cargados."
+        )
+    except Exception as e:
+        print(
+            f"❌ Error entre {inicio + 1} y {fin}"
+        )
+        print(e)
+        raise
+print()
+print("=" * 60)
+print("IMPORTACIÓN TERMINADA")
+print("=" * 60)
+print(f"Total registros : {total}")
+print("=" * 60)
+
+if __name__ == "__main__":
+    print()
+
+    print("Proceso finalizado correctamente.")
