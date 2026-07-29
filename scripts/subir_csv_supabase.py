@@ -21,7 +21,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 CSV_FILE = os.path.join(
     BASE_DIR,
     "datos",
-    "Seguimiento Transferencias y TAG 2025 2.0 28-07.csv"
+    "Seguimiento Transferencias y TAG 2025 2.0 29-07.csv"
 )
 print("=" * 60)
 print("IMPORTADOR SUPABASE")
@@ -60,18 +60,16 @@ df["PPU"] = (
 )
 df = df[df["PPU"] != ""]
 
-# Convertir la fecha de remate para poder comparar
-df["Fecha Remate"] = pd.to_datetime(
+df["Fecha Remate Orden"] = pd.to_datetime(
     df["Fecha Remate"],
-    dayfirst=True,
+    format="%d-%m-%Y",
     errors="coerce"
 )
-
-# Conservar el registro más reciente de cada patente
 df = (
-    df.sort_values("Fecha Remate")
+    df.sort_values("Fecha Remate Orden")
       .drop_duplicates(subset=["PPU"], keep="last")
 )
+df.drop(columns=["Fecha Remate Orden"], inplace=True)
 print(f"Registros válidos: {len(df)}")
 
 # FUNCIONES
@@ -88,24 +86,30 @@ def texto(valor):
     return valor
 def fecha(valor):
     """
-    Convierte cualquier fecha al formato YYYY-MM-DD.
+    Convierte fechas del CSV (DD-MM-YYYY) al formato YYYY-MM-DD.
     """
     if pd.isna(valor):
         return None
+    # Si ya es Timestamp, devolver directamente
+    if isinstance(valor, pd.Timestamp):
+        return valor.strftime("%Y-%m-%d")
     valor = str(valor).strip()
     if valor == "":
         return None
-    try:
+    fecha = pd.to_datetime(
+        valor,
+        format="%d-%m-%Y",
+        errors="coerce"
+    )
+    if pd.isna(fecha):
         fecha = pd.to_datetime(
             valor,
-            dayfirst=True,
+            format="%Y-%m-%d",
             errors="coerce"
         )
-        if pd.isna(fecha):
-            return None
-        return fecha.strftime("%Y-%m-%d")
-    except Exception:
+    if pd.isna(fecha):
         return None
+    return fecha.strftime("%Y-%m-%d")
 print("Preparando registros...")
 registros = []
 
@@ -165,6 +169,12 @@ print(f"Registros preparados: {len(registros)}")
 print("Subiendo registros a Supabase...")
 TAMANO_LOTE = 500
 total = len(registros)
+print("Limpiando tabla...")
+
+supabase.table("transferencias")\
+    .delete()\
+    .neq("ppu", "")\
+    .execute()
 for inicio in range(0, total, TAMANO_LOTE):
     fin = min(inicio + TAMANO_LOTE, total)
     lote = registros[inicio:fin]
