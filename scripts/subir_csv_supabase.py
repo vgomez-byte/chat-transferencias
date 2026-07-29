@@ -21,7 +21,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 CSV_FILE = os.path.join(
     BASE_DIR,
     "datos",
-    "Seguimiento Transferencias y TAG 2025 2.0 29-07.csv"
+    "Seguimiento Transferencias y TAG 2025 2.0.csv"
 )
 print("=" * 60)
 print("IMPORTADOR SUPABASE")
