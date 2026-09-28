@@ -23,13 +23,25 @@ CARPETA_SOLICITUDES = os.getenv(
 URL_SOLICITUDES = ("https://macal1.sharepoint.com/sites/GERENCIADVL/"
                    "Documentos compartidos/Subastas/Solicitudes Transferencia")
 
-CARPETA_PADRONES = os.getenv(
-    "RUTA_PADRONES",
-    os.path.join(HOME, "OneDrive - Macal", "GERENCIA DVL - Documentos",
-                 "Subastas", "Padron Autos"),
+# Padrones oficiales: GERENCIA DVL > Subastas > "Padron 2026 Scrip" (y los años
+# siguientes, p. ej. "Padron 2027 Scrip", se detectan solos).
+CARPETA_SUBASTAS = os.getenv(
+    "RUTA_SUBASTAS",
+    os.path.join(HOME, "OneDrive - Macal", "GERENCIA DVL - Documentos", "Subastas"),
 )
-URL_PADRONES = ("https://macal1.sharepoint.com/sites/GERENCIADVL/"
-                "Documentos compartidos/Subastas/Padron Autos")
+URL_SUBASTAS = ("https://macal1.sharepoint.com/sites/GERENCIADVL/"
+                "Documentos compartidos/Subastas")
+RE_CARPETA_PADRON = re.compile(r"^Padron \d{4} Scrip", re.IGNORECASE)
+
+
+def carpetas_padrones():
+    if not os.path.isdir(CARPETA_SUBASTAS):
+        print(f"⚠ No existe la carpeta: {CARPETA_SUBASTAS}")
+        return []
+    return sorted(
+        os.path.join(CARPETA_SUBASTAS, n) for n in os.listdir(CARPETA_SUBASTAS)
+        if RE_CARPETA_PADRON.match(n) and os.path.isdir(os.path.join(CARPETA_SUBASTAS, n))
+    )
 
 TABLA = "documentos_transferencia"
 
@@ -71,7 +83,10 @@ def indexar():
         docs.setdefault(ppu, {"ppu": ppu})[campo] = url
 
     # Padrones (si hay más de uno por patente, se deja el más reciente)
-    for raiz, nombre in recorrer(CARPETA_PADRONES):
+    carpetas = carpetas_padrones()
+    print("Carpetas de padrones:", ", ".join(os.path.basename(c) for c in carpetas) or "ninguna")
+    archivos_padron = [(r, n) for c in carpetas for r, n in recorrer(c)]
+    for raiz, nombre in archivos_padron:
         m = RE_PADRON.match(nombre.strip())
         if not m:
             if nombre.lower().endswith(".pdf"):
@@ -83,7 +98,7 @@ def indexar():
         if reg.get("fecha_padron") and reg["fecha_padron"] >= fecha:
             continue
         reg["fecha_padron"] = fecha
-        reg["url_padron"] = armar_url(URL_PADRONES, CARPETA_PADRONES, os.path.join(raiz, nombre))
+        reg["url_padron"] = armar_url(URL_SUBASTAS, CARPETA_SUBASTAS, os.path.join(raiz, nombre))
 
     # Completar columnas para que todos los registros tengan la misma forma
     columnas = ["ppu", "url_solicitud", "url_reingreso", "url_padron", "fecha_padron"]
