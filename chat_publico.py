@@ -83,6 +83,42 @@ def consultar_bd(pregunta):
         st.error(f"Error consultando Supabase: {e}")
         return []
 
+def consultar_documentos(patente):
+    """Links a la solicitud de transferencia, reingreso y padrón de la patente."""
+    try:
+        r = (
+            supabase
+            .table("documentos_transferencia")
+            .select("url_solicitud, url_reingreso, url_padron")
+            .eq("ppu", patente)
+            .limit(1)
+            .execute()
+        )
+        return r.data[0] if r.data else {}
+    except Exception as e:
+        st.warning(f"No se pudieron cargar los documentos: {e}")
+        return {}
+
+def mostrar_documentos(patente):
+    docs = consultar_documentos(patente)
+    botones = []
+    if docs.get("url_reingreso"):
+        botones.append(("📄 Solicitud (reingreso)", docs["url_reingreso"]))
+        if docs.get("url_solicitud"):
+            botones.append(("📄 Solicitud original", docs["url_solicitud"]))
+    elif docs.get("url_solicitud"):
+        botones.append(("📄 Solicitud de transferencia", docs["url_solicitud"]))
+    if docs.get("url_padron"):
+        botones.append(("🚗 Padrón", docs["url_padron"]))
+
+    if not botones:
+        st.caption("Sin documentos disponibles para esta patente.")
+        return
+    cols = st.columns(len(botones))
+    for col, (texto, url) in zip(cols, botones):
+        with col:
+            st.link_button(texto, url)
+
 st.set_page_config(page_title="Chat Transferencias", page_icon="💬", layout="centered")
 
 # --- ESTILOS ---
@@ -130,6 +166,16 @@ div[data-testid="stHorizontalBlock"] {
     font-weight: bold;
     padding: 0.4em 1.4em;
     font-size: 0.95em;
+}
+div[data-testid="stLinkButton"] a {
+    background-color: #ff8000 !important;
+    color: white !important;
+    border-radius: 8px;
+    border: none;
+    font-weight: bold;
+}
+div[data-testid="stLinkButton"] a:hover {
+    background-color: #ffa94d !important;
 }
 .stButton > button:hover {
     background-color: #ffa94d;
@@ -329,5 +375,6 @@ for autor, mensaje in st.session_state.historial:
             html += '</div>'
 
             st.markdown(html, unsafe_allow_html=True)
+            mostrar_documentos(str(item.get("PPU") or "").strip().upper())
     else:
         st.write(f"{autor}: {mensaje}")

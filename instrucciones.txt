@@ -15,3 +15,12 @@ despues ejecutar chat local solo para ver cambios
 el chat quedo en linea con streamlit 
 https://chat-transferencias-macal.streamlit.app/
 
+
+
+--- LINKS A DOCUMENTOS (solicitud / reingreso / padrón) ---
+(solo la primera vez) ejecutar scripts/crear_tabla_documentos.sql en Supabase > SQL Editor
+
+Cada vez que se agreguen solicitudes o padrones:
+1. venv\Scripts\activate
+2. python scripts/indexar_documentos.py --prueba   (revisar conteos y nombres no reconocidos)
+3. python scripts/indexar_documentos.py            (sube los links a Supabase)
