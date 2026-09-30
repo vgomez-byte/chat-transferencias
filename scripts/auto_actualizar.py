@@ -69,9 +69,19 @@ def main():
     if os.path.exists(EXCEL_FILE):
         mtime = str(int(os.path.getmtime(EXCEL_FILE)))
         if estado.get("excel") != mtime:
-            log("Excel modificado -> subiendo estados de transferencias")
-            if ejecutar("subir_csv_supabase.py"):
-                estado["excel"] = mtime
+            try:
+                with open(EXCEL_FILE, "rb"):
+                    disponible = True
+            except PermissionError:
+                disponible = False
+            if not disponible:
+                if estado.get("aviso_excel") != mtime:
+                    log("Excel con cambios, pero está abierto en Excel: se sube cuando lo cierre")
+                    estado["aviso_excel"] = mtime
+            else:
+                log("Excel modificado -> subiendo estados de transferencias")
+                if ejecutar("subir_csv_supabase.py"):
+                    estado["excel"] = mtime
     else:
         log(f"No se encontró el Excel: {EXCEL_FILE}")
 
