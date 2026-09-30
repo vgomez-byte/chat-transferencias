@@ -47,8 +47,9 @@ def ejecutar(script):
     if python.lower().endswith("pythonw.exe"):
         python = python[:-5] + ".exe"  # python.exe, sin ventana gracias a CREATE_NO_WINDOW
     flags = 0x08000000 if os.name == "nt" else 0
+    entorno = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     r = subprocess.run([python, os.path.join(BASE_DIR, "scripts", script)],
-                       cwd=BASE_DIR, capture_output=True, text=True,
+                       cwd=BASE_DIR, capture_output=True, text=True, env=entorno,
                        encoding="utf-8", errors="replace", creationflags=flags)
     resumen = [l for l in r.stdout.splitlines() if "✔" not in l and l.strip() and "=====" not in l]
     for l in resumen[-8:]:

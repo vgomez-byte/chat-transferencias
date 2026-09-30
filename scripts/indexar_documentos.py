@@ -6,6 +6,13 @@ Uso:
     python scripts/indexar_documentos.py            -> indexa y sube
     python scripts/indexar_documentos.py --prueba   -> solo muestra lo encontrado
 """
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import os
 import re
 import sys
