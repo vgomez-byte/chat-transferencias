@@ -24,3 +24,15 @@ Cada vez que se agreguen solicitudes o padrones:
 1. venv\Scripts\activate
 2. python scripts/indexar_documentos.py --prueba   (revisar conteos y nombres no reconocidos)
 3. python scripts/indexar_documentos.py            (sube los links a Supabase)
+
+
+--- ACTUALIZACION DESDE EL EXCEL (ya no hace falta exportar CSV) ---
+El script lee directo la hoja BBDD de:
+GERENCIA DVL - Documentos\Planillas\Transferencias\Seguimiento Transferencias y TAG 2025 2.0.xlsx
+(solo la primera vez) venv\Scripts\activate  y  pip install openpyxl
+
+Manual: doble clic en actualizar_transferencias.bat
+Automatico: doble clic UNA vez en activar_actualizacion_automatica.bat
+  - cada 30 min revisa si cambio el Excel o llegaron PDF nuevos y actualiza solo lo que cambio
+  - registro en logs\actualizacion_auto.log
+  - para apagarlo: desactivar_actualizacion_automatica.bat

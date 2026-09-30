@@ -16,8 +16,19 @@ supabase = create_client(
     SUPABASE_KEY
 )
 
-# CSV
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+# ORIGEN DE DATOS
+# 1) Excel oficial en GERENCIA DVL (hoja BBDD)  -> ya no hace falta exportar CSV
+# 2) Si no se encuentra, usa el CSV de la carpeta "datos" como antes
+import datetime
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EXCEL_FILE = os.getenv(
+    "RUTA_EXCEL_TRANSFERENCIAS",
+    os.path.join(
+        os.path.expanduser("~"), "OneDrive - Macal", "GERENCIA DVL - Documentos",
+        "Planillas", "Transferencias", "Seguimiento Transferencias y TAG 2025 2.0.xlsx"
+    ),
+)
+HOJA_EXCEL = "BBDD"
 CSV_FILE = os.path.join(
     BASE_DIR,
     "datos",
@@ -26,24 +37,34 @@ CSV_FILE = os.path.join(
 print("=" * 60)
 print("IMPORTADOR SUPABASE")
 print("=" * 60)
-print("Leyendo CSV...")
 
-try:
-    df = pd.read_csv(
-    CSV_FILE,
-    encoding="utf-8-sig",
-    sep=";",
-    low_memory=False
-)
-except UnicodeDecodeError:
-    print("CSV detectado...")
-    df = pd.read_csv(
+if os.path.exists(EXCEL_FILE):
+    print(f"Leyendo Excel (hoja {HOJA_EXCEL})...")
+    df = pd.read_excel(
+        EXCEL_FILE,
+        sheet_name=HOJA_EXCEL,
+        header=1,          # fila 1: TRANSFERENCIAS / TAG ; fila 2: encabezados
+        dtype=object,
+        engine="openpyxl",
+    )
+else:
+    print("No se encontró el Excel, leyendo CSV...")
+    try:
+        df = pd.read_csv(
         CSV_FILE,
-        encoding="cp1252",
+        encoding="utf-8-sig",
         sep=";",
-        header=1,
         low_memory=False
     )
+    except UnicodeDecodeError:
+        print("CSV detectado...")
+        df = pd.read_csv(
+            CSV_FILE,
+            encoding="cp1252",
+            sep=";",
+            header=1,
+            low_memory=False
+        )
 print(f"Registros encontrados: {len(df)}")
 df.columns = df.columns.str.strip()
 
@@ -60,11 +81,12 @@ df["PPU"] = (
 )
 df = df[df["PPU"] != ""]
 
-df["Fecha Remate Orden"] = pd.to_datetime(
-    df["Fecha Remate"],
-    format="%d-%m-%Y",
-    errors="coerce"
-)
+def _orden_fecha(v):
+    if isinstance(v, (datetime.datetime, datetime.date)):
+        return pd.Timestamp(v)
+    return pd.to_datetime(str(v).strip(), format="%d-%m-%Y", errors="coerce")
+
+df["Fecha Remate Orden"] = df["Fecha Remate"].map(_orden_fecha)
 df = (
     df.sort_values("Fecha Remate Orden")
       .drop_duplicates(subset=["PPU"], keep="last")
@@ -80,6 +102,10 @@ def texto(valor):
     """
     if pd.isna(valor):
         return None
+    if isinstance(valor, float) and valor.is_integer():
+        valor = int(valor)
+    if isinstance(valor, (datetime.datetime, datetime.date)):
+        valor = valor.strftime("%d-%m-%Y")
     valor = str(valor).strip()
     if valor == "":
         return None
@@ -91,7 +117,7 @@ def fecha(valor):
     if pd.isna(valor):
         return None
     # Si ya es Timestamp, devolver directamente
-    if isinstance(valor, pd.Timestamp):
+    if isinstance(valor, (pd.Timestamp, datetime.datetime, datetime.date)):
         return valor.strftime("%Y-%m-%d")
     valor = str(valor).strip()
     if valor == "":

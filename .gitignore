@@ -9,3 +9,5 @@ __pycache__/
 .streamlit/
 # VS Code
 .vscode/
+# Registros de la actualizacion automatica
+logs/
