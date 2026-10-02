@@ -42,15 +42,17 @@ def firma_documentos():
     return f"{total}-{ultima:.0f}"
 
 
-def ejecutar(script):
+def ejecutar(script, *args):
     python = sys.executable
     if python.lower().endswith("pythonw.exe"):
         python = python[:-5] + ".exe"  # python.exe, sin ventana gracias a CREATE_NO_WINDOW
     flags = 0x08000000 if os.name == "nt" else 0
     entorno = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-    r = subprocess.run([python, os.path.join(BASE_DIR, "scripts", script)],
+    r = subprocess.run([python, os.path.join(BASE_DIR, "scripts", script), *args],
                        cwd=BASE_DIR, capture_output=True, text=True, env=entorno,
                        encoding="utf-8", errors="replace", creationflags=flags)
+    if r.returncode == 0 and "SIN CAMBIOS" in r.stdout:
+        return "sin_cambios"
     resumen = [l for l in r.stdout.splitlines() if "✔" not in l and l.strip() and "=====" not in l]
     for l in resumen[-8:]:
         log("   " + l)
@@ -65,23 +67,11 @@ def main():
     except Exception:
         estado = {}
 
-    # 1) Excel de seguimiento
+    # 1) Excel de seguimiento: se lee siempre (aunque esté abierto) y solo se
+    #    sube a Supabase si los datos cambiaron respecto de la última carga.
     if os.path.exists(EXCEL_FILE):
-        mtime = str(int(os.path.getmtime(EXCEL_FILE)))
-        if estado.get("excel") != mtime:
-            try:
-                with open(EXCEL_FILE, "rb"):
-                    disponible = True
-            except PermissionError:
-                disponible = False
-            if not disponible:
-                if estado.get("aviso_excel") != mtime:
-                    log("Excel con cambios, pero está abierto en Excel: se sube cuando lo cierre")
-                    estado["aviso_excel"] = mtime
-            else:
-                log("Excel modificado -> subiendo estados de transferencias")
-                if ejecutar("subir_csv_supabase.py"):
-                    estado["excel"] = mtime
+        if ejecutar("subir_csv_supabase.py", "--si-cambio") is True:
+            log("   (estados de transferencias actualizados)")
     else:
         log(f"No se encontró el Excel: {EXCEL_FILE}")
 

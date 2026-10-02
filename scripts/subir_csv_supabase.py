@@ -44,15 +44,61 @@ print("=" * 60)
 print("IMPORTADOR SUPABASE")
 print("=" * 60)
 
+def leer_excel_abierto():
+    """
+    Si el Excel está abierto en Excel de escritorio, el archivo queda bloqueado.
+    En ese caso se leen los datos directamente desde Excel (hoja BBDD), sin cerrarlo.
+    """
+    import pythoncom
+    import win32com.client
+    pythoncom.CoInitialize()
+    try:
+        xl = win32com.client.GetActiveObject("Excel.Application")
+    except Exception:
+        raise Exception("El Excel está bloqueado, pero no se encontró Excel abierto en este PC")
+    nombre = os.path.basename(EXCEL_FILE).lower()
+    libro = next((w for w in xl.Workbooks if str(w.Name).lower() == nombre), None)
+    if libro is None:
+        raise Exception("El Excel está bloqueado, pero no está abierto en este PC")
+    hoja = libro.Worksheets(HOJA_EXCEL)
+    usado = hoja.UsedRange
+    ultima_fila = usado.Row + usado.Rows.Count - 1
+    ultima_col = usado.Column + usado.Columns.Count - 1
+    valores = hoja.Range(hoja.Cells(1, 1), hoja.Cells(ultima_fila, ultima_col)).Value
+
+    def limpiar(v):
+        # Excel entrega fechas con zona horaria; se dejan como fecha simple
+        if isinstance(v, datetime.datetime):
+            return datetime.datetime(v.year, v.month, v.day, v.hour, v.minute, v.second)
+        return v
+
+    filas = [[limpiar(v) for v in fila] for fila in valores]
+    # fila 1: TRANSFERENCIAS / TAG ; fila 2: encabezados (igual que al leer el archivo)
+    encabezados, vistos = [], {}
+    for i, h in enumerate(filas[1]):
+        h = str(h).strip() if h is not None else f"Unnamed: {i}"
+        if h in vistos:
+            vistos[h] += 1
+            h = f"{h}.{vistos[h]}"
+        else:
+            vistos[h] = 0
+        encabezados.append(h)
+    return pd.DataFrame(filas[2:], columns=encabezados, dtype=object)
+
+
 if os.path.exists(EXCEL_FILE):
     print(f"Leyendo Excel (hoja {HOJA_EXCEL})...")
-    df = pd.read_excel(
-        EXCEL_FILE,
-        sheet_name=HOJA_EXCEL,
-        header=1,          # fila 1: TRANSFERENCIAS / TAG ; fila 2: encabezados
-        dtype=object,
-        engine="openpyxl",
-    )
+    try:
+        df = pd.read_excel(
+            EXCEL_FILE,
+            sheet_name=HOJA_EXCEL,
+            header=1,          # fila 1: TRANSFERENCIAS / TAG ; fila 2: encabezados
+            dtype=object,
+            engine="openpyxl",
+        )
+    except PermissionError:
+        print("El Excel está abierto: leyendo los datos directo desde Excel...")
+        df = leer_excel_abierto()
 else:
     print("No se encontró el Excel, leyendo CSV...")
     try:
@@ -198,6 +244,21 @@ print(f"Registros preparados: {len(registros)}")
 
 
 # CARGAR A SUPABASE
+# Si se pide "--si-cambio", no se sube nada cuando los datos son iguales a la última carga
+import json
+import hashlib
+ARCHIVO_HUELLA = os.path.join(BASE_DIR, "logs", "huella_transferencias.txt")
+huella = hashlib.md5(
+    json.dumps(registros, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+).hexdigest()
+try:
+    huella_anterior = open(ARCHIVO_HUELLA, encoding="utf-8").read().strip()
+except Exception:
+    huella_anterior = None
+if "--si-cambio" in sys.argv and huella == huella_anterior:
+    print("SIN CAMBIOS: los datos son iguales a la última carga.")
+    sys.exit(0)
+
 print("Subiendo registros a Supabase...")
 TAMANO_LOTE = 500
 total = len(registros)
@@ -223,6 +284,9 @@ for inicio in range(0, total, TAMANO_LOTE):
         )
         print(e)
         raise
+os.makedirs(os.path.dirname(ARCHIVO_HUELLA), exist_ok=True)
+with open(ARCHIVO_HUELLA, "w", encoding="utf-8") as f:
+    f.write(huella)
 print()
 print("=" * 60)
 print("IMPORTACIÓN TERMINADA")

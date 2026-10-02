@@ -33,6 +33,9 @@ GERENCIA DVL - Documentos\Planillas\Transferencias\Seguimiento Transferencias y 
 
 Manual: doble clic en actualizar_transferencias.bat
 Automatico: doble clic UNA vez en activar_actualizacion_automatica.bat
-  - cada 30 min revisa si cambio el Excel o llegaron PDF nuevos y actualiza solo lo que cambio
+  - cada 10 min revisa si cambio el Excel o llegaron PDF nuevos y actualiza solo lo que cambio
   - registro en logs\actualizacion_auto.log
   - para apagarlo: desactivar_actualizacion_automatica.bat
+
+  - si el Excel esta abierto, los datos se leen directo desde Excel (requiere: pip install pywin32)
+  - solo sube a Supabase cuando los datos cambiaron
